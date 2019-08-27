@@ -1,0 +1,31 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: environment-msproject
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: msproject
+    spec:
+      containers:
+      - name: environment-msproject
+        image: imagetag
+        resources:
+          requests:
+            cpu: cpurequest
+            memory: "memoryrequest"
+          limits:
+            cpu: cpulimit
+            memory: "memorylimit"
+        env:
+        - name: JVM_OPTS
+          value: "-Xms216M -Xmx320M"
+        - name: SPRING_PROFILES_ACTIVE
+          value: environment
+        ports:
+        - containerPort: portno
+          protocol: TCP
+      imagePullSecrets:
+        - name: gitlab
