@@ -1,0 +1,61 @@
+image: docker:latest
+services:
+  - docker:dind
+
+variables:
+  DOCKER_DRIVER: overlay
+  MAVEN_CLI_OPTS: "-s ci_settings.xml --batch-mode"
+  uatportno: 8080
+  prodportno: 8080
+  msproject: a2p-messagereport
+  cpurequest: 100m
+  cpulimit: 200m
+  memoryrequest: 256Mi
+  memorylimit: 384Mi
+  
+
+cache:
+  paths:
+    - target/
+    - variable
+
+stages:
+  - build
+  - package
+  - deploy
+
+maven-build:
+  image: maven:3.6.1-jdk-12
+  stage: build
+  script:
+    - mvn $MAVEN_CLI_OPTS clean verify site
+    - POM_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -B)
+    - VERSION=$POM_VERSION-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA
+    - IMAGE_TAG=$CI_REGISTRY_IMAGE:$VERSION
+    - echo IMAGE_TAG="$(echo "$IMAGE_TAG")" > variable
+  artifacts:
+    paths:
+      - target/messaging-report*.jar
+      - target/site
+
+docker-package:
+  stage: package
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  script:
+    - source variable
+    - docker build -t $IMAGE_TAG .
+    - docker push $IMAGE_TAG
+  dependencies:
+    - maven-build
+
+deploy-to-staging:
+  stage: deploy
+  image: node:8.9.0
+  script:
+    - bash deploy/uat-deploy.sh
+  environment:
+    name: uat1
+    url: https://5E98EA9CAF3B139C29588A8388C35E84.sk1.eu-west-1.eks.amazonaws.com
+  only:
+    - release
